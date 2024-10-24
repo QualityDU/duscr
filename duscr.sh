@@ -46,9 +46,13 @@ DUSCR_HEADPOINT_RELPATH="headpoint";
 
 # $1 - URL
 # $2 - headpoint save flag
+# $3 - sync check flag
+# $4 - old headpoint
 function duscr_bulk_download() {
     BULK_DOWNLOAD_URL=$1;
     HEADPOINT_SAVE_FLAG=$2;
+    SYNC_CHECK_FLAG=$3;
+    OLD_HEADPOINT=$4;
     while read relpath; do	
         if [ "$HEADPOINT_SAVE_FLAG" = "1" ]; then
             # save the headpoint to .duscr/headpoint
@@ -56,8 +60,18 @@ function duscr_bulk_download() {
 	    echo "${HEADPOINT_PDF_RELPATH:1:-4}" > "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH" || (echo "Failed to write to $DUSCR_HEADPOINT_RELPATH"; exit 1);
 	    HEADPOINT_SAVE_FLAG=0;
         fi;
-
-	until wget -q "$BASE_URL_DIRECT/$relpath"; do sleep 5; done;
+	if [ "$SYNC_CHECK_FLAG" = "0" ]; then
+	    until wget -q "$BASE_URL_DIRECT/$relpath"; do sleep 5; done;
+        elif [ "$SYNC_CHECK_FLAG" = "1" ]; then
+            CURRPOINT_PDF_RELPATH=$(echo $relpath | awk -F '/' '{print $5}');
+	    if [[ "${CURRPOINT_PDF_RELPATH:1:-4}" > "$OLD_HEADPOINT" ]]; then
+		echo "Sync: adding $relpath";
+		until wget -q "$BASE_URL_DIRECT/$relpath"; do sleep 5; done;
+	    fi;
+	else
+	    echo "Invalid SYNC_CHECK_FLAG. Quit"; 
+	    exit 1;
+	fi;
     done < <(until curl -s "$BULK_DOWNLOAD_URL"; do sleep 5; done | pup '#c_table tbody tr a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep .pdf);
     echo $HEADPOINT_SAVE_FLAG;
 }
@@ -67,15 +81,25 @@ function duscr_bulk_download() {
 function duscr_journal_scrap() {
     YYYY=$1;
     JOURNALNO=$2;
-    duscr_bulk_download "$BASE_URL/$YYYY/wydanie/$JOURNALNO" 0 > /dev/null; 
+    duscr_bulk_download "$BASE_URL/$YYYY/wydanie/$JOURNALNO" 0 0 0 > /dev/null; 
 }
 
 # $1 - YYYY
+# $2 - sync flag
 function duscr_year_scrap() {
     YYYY=$1;
+    SYNC_FLAG=$2;
     HEADPOINT_SAVE_FLAG=0;
+    HEADPOINT_OLD=0;
     if [ "$YYYY" = "$CURRENT_YEAR" ]; then
         HEADPOINT_SAVE_FLAG=1;
+    fi;
+    if [ "$SYNC_FLAG" = "1" ]; then
+	if [ ! -f "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH" ]; then
+		echo "Sync: missing headpoint! The duscr scraping data directory was not initialized correctly (interrupted download process?). You need to empty the directory '$DATA_DIR' (or choose a different one) and then run 'duscr init <directory_path>'. Quit";
+	    exit 1;
+        fi;
+	HEADPOINT_OLD=$(cat "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH");
     fi;
 
     if [ "$YYYY" -gt "$CURRENT_YEAR" ]; then
@@ -83,7 +107,7 @@ function duscr_year_scrap() {
 	exit 1;
     elif [ "$YYYY" -ge "$FIRST_YEAR_F02" ]; then
         echo -n "Scraping year $YYYY... ";    
-	HEADPOINT_SAVE_FLAG=$(duscr_bulk_download "$BASE_URL/$YYYY" $HEADPOINT_SAVE_FLAG);
+	HEADPOINT_SAVE_FLAG=$(duscr_bulk_download "$BASE_URL/$YYYY" $HEADPOINT_SAVE_FLAG $SYNC_FLAG $HEADPOINT_OLD);
 	echo "Done";
     elif [ "$YYYY" -ge "$FIRST_YEAR_F01" ]; then
 	# Scan through the available journals
@@ -137,20 +161,37 @@ function duscr_args_handler() {
 	        echo "$DATA_DIR already is a duscr initialized directory. Quit.";
 	        exit 1;
 	    fi;
+	    if [ ! -z "$( ls -A . )" ]; then
+		read -p "$DATA_DIR is a non-empty directory. Are you sure you want to use it instead of an empty directory? " -n 1 -r
+                echo;
+                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+		    echo "Exiting";
+                    exit 1;
+                fi;
+	    fi;
+            
+	    # Create .duscr
             mkdir "$DUSCR_DIR_RELPATH";
             
             # download everything starting from 1944 and ending CURRENT_YEAR
 	    for year in $(seq $FIRST_YEAR $CURRENT_YEAR);
 	    do
-                duscr_year_scrap $year; 
+                duscr_year_scrap $year 0; 
 	    done;
-	    cd - || (echo  "Failed to cd -"; exit 1);	    
+	    cd - > /dev/null || (echo  "Failed to cd -"; exit 1);	    
 	    ;;
         sync)
 	    # check for new stuff and update the dataset if needed
 	    duscr_arg_common_sanity_checks $MODE $DATA_DIR;
-	    echo "Not implemented!"
-	    exit 1;
+	    cd $DATA_DIR || (echo "Failed to cd $DATA_DIR"; exit 1);
+	    # check if .duscr doesn't exist
+	    if [ ! -d "$DUSCR_DIR_RELPATH" ]; then
+                echo "$DATA_DIR is not a duscr data directory. Use 'duscr init <directory_path>' to initialize a duscr scraping data directory. Quit";
+		exit 1;
+	    fi;
+	    # sync (check for any new acts available)"
+            duscr_year_scrap $CURRENT_YEAR 1;
+	    cd - > /dev/null || (echo "Failed to cd -"; exit 1); 
 	    ;;
         *)
 	    echo "------ duscr (the Dziennik Ustaw SCRaper)------";
