@@ -44,10 +44,30 @@ FIRST_YEAR_F02=2012;
 DUSCR_DIR_RELPATH=".duscr";
 DUSCR_HEADPOINT_RELPATH="headpoint";
 
-# $1 - journal URL
+# $1 - URL
+# $2 - headpoint save flag
+function duscr_bulk_download() {
+    BULK_DOWNLOAD_URL=$1;
+    HEADPOINT_SAVE_FLAG=$2;
+    while read relpath; do	
+        if [ "$HEADPOINT_SAVE_FLAG" = "1" ]; then
+            # save the headpoint to .duscr/headpoint
+	    HEADPOINT_PDF_RELPATH=$(echo $relpath | awk -F '/' '{print $5}');
+	    echo "${HEADPOINT_PDF_RELPATH:1:-4}" > "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH" || (echo "Failed to write to $DUSCR_HEADPOINT_RELPATH"; exit 1);
+	    HEADPOINT_SAVE_FLAG=0;
+        fi;
+
+	until wget -q "$BASE_URL_DIRECT/$relpath"; do sleep 5; done;
+    done < <(until curl -s "$BULK_DOWNLOAD_URL"; do sleep 5; done | pup '#c_table tbody tr a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep .pdf);
+    echo $HEADPOINT_SAVE_FLAG;
+}
+
+# $1 - YYYY
+# $2 - journalno
 function duscr_journal_scrap() {
-    #TODO   
-    sleep 1; 
+    YYYY=$1;
+    JOURNALNO=$2;
+    duscr_bulk_download "$BASE_URL/$YYYY/wydanie/$JOURNALNO" 0 > /dev/null; 
 }
 
 # $1 - YYYY
@@ -63,17 +83,8 @@ function duscr_year_scrap() {
 	exit 1;
     elif [ "$YYYY" -ge "$FIRST_YEAR_F02" ]; then
         echo -n "Scraping year $YYYY... ";    
-        while read relpath; do	
-            if [ "$HEADPOINT_SAVE_FLAG" = "1" ]; then
-                # save the headpoint to .duscr/headpoint
-		HEADPOINT_PDF_RELPATH=$(echo $relpath | awk -F '/' '{print $5}');
-		echo "${HEADPOINT_PDF_RELPATH:1:-4}" > "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH" || (echo "Failed to write to $DUSCR_HEADPOINT_RELPATH"; exit 1);
-	        HEADPOINT_SAVE_FLAG=0;
-            fi;
-
-	    until wget -q "$BASE_URL_DIRECT/$relpath"; do sleep 5; done;
-        done < <(until curl -s "$BASE_URL/$YYYY"; do sleep 5; done | pup '#c_table tbody tr a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep .pdf);
-        echo "Done";
+	HEADPOINT_SAVE_FLAG=$(duscr_bulk_download "$BASE_URL/$YYYY" $HEADPOINT_SAVE_FLAG);
+	echo "Done";
     elif [ "$YYYY" -ge "$FIRST_YEAR_F01" ]; then
 	# Scan through the available journals
 	echo "Processing journal list for year $YYYY";
@@ -83,10 +94,11 @@ function duscr_year_scrap() {
 	    if [ "$JOURNALNO_MAX_SET_FLAG" = "1" ]; then
 	        JOURNALNO_MAX="$journalno";
 		JOURNALNO_MAX_SET_FLAG=0;
+		echo "Number of journals: $JOURNALNO_MAX";
 	    fi;
 	    PROGRESSBAR_PROGRESS=$(( $JOURNALNO_MAX - $journalno + 1 )); 
 	    progressbar  "Scraping year $YYYY, journal $journalno... " $PROGRESSBAR_PROGRESS $JOURNALNO_MAX;
-	    # TODO
+	    duscr_journal_scrap $YYYY $journalno;
         done < <(until curl -s "$BASE_URL/$YYYY"; do sleep 5; done | pup '#c_table tbody tr td.numberAlign a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep wydanie | awk -F '/' '{print $6}');	
     else
         echo "Invalid attempt to scrap distant past before $FIRST_YEAR_F01";
