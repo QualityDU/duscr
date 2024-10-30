@@ -10,5 +10,5 @@
 
 ## How to use
 1. Create an empty directory for storing duscr scrap data
-2. Run `duscr init <directory_path>` and wait until the files are downloaded
-3. Add a cron job containing `duscr sync <directory_path>` so that any updates are synced with a desired frequency
+2. Run `duscr init <directory_path> <log_file_path>` and wait until the files are downloaded
+3. Add a cron job containing `duscr sync <directory_path> <log_file_path>` so that any updates are synced with a desired frequency

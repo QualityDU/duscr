@@ -23,6 +23,8 @@
 #     init - downloads everything starting from 1944 and ending today
 #     sync - checks for new stuff and updates the dataset if needed
 # $2 - data directory path
+# $3 - log file path
+
 
 ### === INTERNALS DESCRIPTION ===
 ## Formats
@@ -48,16 +50,21 @@ DUSCR_HEADPOINT_RELPATH="headpoint";
 # $2 - headpoint save flag
 # $3 - sync check flag
 # $4 - old headpoint
+# $5 - log file path
 function duscr_bulk_download() {
     BULK_DOWNLOAD_URL=$1;
     HEADPOINT_SAVE_FLAG=$2;
     SYNC_CHECK_FLAG=$3;
     OLD_HEADPOINT=$4;
+    LOG_FILE_PATH=$5;
+
+    #echo "SYNC_CHECK_FLAG = $SYNC_CHECK_FLAG";
+
     while read relpath; do	
         if [ "$HEADPOINT_SAVE_FLAG" = "1" ]; then
             # save the headpoint to .duscr/headpoint
 	    HEADPOINT_PDF_RELPATH=$(echo $relpath | awk -F '/' '{print $5}');
-	    echo "${HEADPOINT_PDF_RELPATH:1:-4}" > "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH" || (echo "Failed to write to $DUSCR_HEADPOINT_RELPATH"; exit 1);
+	    echo "${HEADPOINT_PDF_RELPATH:1:-4}" > "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH" || (echo "Failed to write to $DUSCR_HEADPOINT_RELPATH" >> "$LOG_FILE_PATH"; exit 1);
 	    HEADPOINT_SAVE_FLAG=0;
         fi;
 	if [ "$SYNC_CHECK_FLAG" = "0" ]; then
@@ -65,12 +72,12 @@ function duscr_bulk_download() {
         elif [ "$SYNC_CHECK_FLAG" = "1" ]; then
             CURRPOINT_PDF_RELPATH=$(echo $relpath | awk -F '/' '{print $5}');
 	    if [[ "${CURRPOINT_PDF_RELPATH:1:-4}" > "$OLD_HEADPOINT" ]]; then
-		echo "Sync: adding $relpath";
+		echo "Sync: adding $relpath" >> "$LOG_FILE_PATH";
 		until wget -q "$BASE_URL_DIRECT/$relpath"; do sleep 5; done;
 	    fi;
 	else
-	    echo "Invalid SYNC_CHECK_FLAG. Quit"; 
-	    exit 1;
+	    echo "Invalid SYNC_CHECK_FLAG. Quit" >> "$LOG_FILE_PATH"; 
+	    exit 1; # TODO FIXME
 	fi;
     done < <(until curl -s "$BULK_DOWNLOAD_URL"; do sleep 5; done | pup '#c_table tbody tr a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep .pdf);
     echo $HEADPOINT_SAVE_FLAG;
@@ -78,17 +85,21 @@ function duscr_bulk_download() {
 
 # $1 - YYYY
 # $2 - journalno
+# $3 - log file path
 function duscr_journal_scrap() {
     YYYY=$1;
     JOURNALNO=$2;
-    duscr_bulk_download "$BASE_URL/$YYYY/wydanie/$JOURNALNO" 0 0 0 > /dev/null; 
+    LOG_FILE_PATH=$3;
+    duscr_bulk_download "$BASE_URL/$YYYY/wydanie/$JOURNALNO" 0 0 0 $LOG_FILE_PATH > /dev/null; 
 }
 
 # $1 - YYYY
 # $2 - sync flag
+# $3 - log file path
 function duscr_year_scrap() {
     YYYY=$1;
     SYNC_FLAG=$2;
+    LOG_FILE_PATH=$3;
     HEADPOINT_SAVE_FLAG=0;
     HEADPOINT_OLD=0;
     if [ "$YYYY" = "$CURRENT_YEAR" ]; then
@@ -106,9 +117,10 @@ function duscr_year_scrap() {
         echo "Invalid attempt to scrap the future. Quit";
 	exit 1;
     elif [ "$YYYY" -ge "$FIRST_YEAR_F02" ]; then
-        echo -n "Scraping year $YYYY... ";    
-	HEADPOINT_SAVE_FLAG=$(duscr_bulk_download "$BASE_URL/$YYYY" $HEADPOINT_SAVE_FLAG $SYNC_FLAG $HEADPOINT_OLD);
-	echo "Done";
+        echo -n "Scraping year $YYYY... " >> $LOG_FILE_PATH;    
+	#echo "[dbg] SYNC_FLAG = $SYNC_FLAG";
+	HEADPOINT_SAVE_FLAG=$(duscr_bulk_download "$BASE_URL/$YYYY" $HEADPOINT_SAVE_FLAG $SYNC_FLAG $HEADPOINT_OLD $LOG_FILE_PATH);
+	echo "Done" >> $LOG_FILE_PATH;
     elif [ "$YYYY" -ge "$FIRST_YEAR_F01" ]; then
 	# Scan through the available journals
 	echo "Processing journal list for year $YYYY";
@@ -122,7 +134,7 @@ function duscr_year_scrap() {
 	    fi;
 	    PROGRESSBAR_PROGRESS=$(( $JOURNALNO_MAX - $journalno + 1 )); 
 	    progressbar  "Scraping year $YYYY, journal $journalno... " $PROGRESSBAR_PROGRESS $JOURNALNO_MAX;
-	    duscr_journal_scrap $YYYY $journalno;
+	    duscr_journal_scrap $YYYY $journalno $LOG_FILE_PATH;
         done < <(until curl -s "$BASE_URL/$YYYY"; do sleep 5; done | pup '#c_table tbody tr td.numberAlign a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep wydanie | awk -F '/' '{print $6}');	
     else
         echo "Invalid attempt to scrap distant past before $FIRST_YEAR_F01";
@@ -133,10 +145,11 @@ function duscr_year_scrap() {
 
 # $1 - mode option
 # $2 - data directory path
+# $3 - log file path
 function duscr_arg_common_sanity_checks() {
     MODE=$1;
     DATA_DIR=$2;
-    
+    LOG_FILE_PATH=$3;
     if [ ! -d $DATA_DIR ]; then
         echo "The provided directory \"$DATA_DIR\" doesn't exist!";
 	exit 1;
@@ -145,16 +158,26 @@ function duscr_arg_common_sanity_checks() {
         echo "Missing data directory path as second argument";
 	exit 1;
     fi;
+    if [ "$LOG_FILE_PATH" = "" ]; then
+        echo "Missing log file path as third argument";
+	exit 1;
+    fi;
+    if [ -d "$LOG_FILE_PATH" ]; then
+       echo "$LOG_FILE_PATH is a directory";
+       exit 1;
+    fi;
 }
 
 # $1 - mode option
 # $2 - data directory path
+# $3 - log file path
 function duscr_args_handler() {
     MODE=$1;
     DATA_DIR=$2;
+    LOG_FILE_PATH=$3;
     case $MODE in
         init)
-	    duscr_arg_common_sanity_checks $MODE $DATA_DIR;
+	    duscr_arg_common_sanity_checks $MODE $DATA_DIR $LOG_FILE_PATH;
 	    cd $DATA_DIR || (echo "Failed to cd $DATA_DIR"; exit 1);
 	    # check if .duscr exists
 	    if [ -d "$DUSCR_DIR_RELPATH" ]; then
@@ -176,13 +199,13 @@ function duscr_args_handler() {
             # download everything starting from 1944 and ending CURRENT_YEAR
 	    for year in $(seq $FIRST_YEAR $CURRENT_YEAR);
 	    do
-                duscr_year_scrap $year 0; 
+                duscr_year_scrap $year 0 $LOG_FILE_PATH; 
 	    done;
 	    cd - > /dev/null || (echo  "Failed to cd -"; exit 1);	    
 	    ;;
         sync)
 	    # check for new stuff and update the dataset if needed
-	    duscr_arg_common_sanity_checks $MODE $DATA_DIR;
+	    duscr_arg_common_sanity_checks $MODE $DATA_DIR $LOG_FILE_PATH;
 	    cd $DATA_DIR || (echo "Failed to cd $DATA_DIR"; exit 1);
 	    # check if .duscr doesn't exist
 	    if [ ! -d "$DUSCR_DIR_RELPATH" ]; then
@@ -190,7 +213,7 @@ function duscr_args_handler() {
 		exit 1;
 	    fi;
 	    # sync (check for any new acts available)"
-            duscr_year_scrap $CURRENT_YEAR 1;
+            duscr_year_scrap $CURRENT_YEAR 1 $LOG_FILE_PATH;
 	    cd - > /dev/null || (echo "Failed to cd -"; exit 1); 
 	    ;;
         *)
@@ -206,5 +229,5 @@ function duscr_args_handler() {
 
 source progressbar.sh || (echo "Missing progressbar.sh script from https://github.com/roddhjav/progressbar"; exit 1);
 
-duscr_args_handler $1 $2;
+duscr_args_handler $1 $2 "$(realpath $3)";
 
