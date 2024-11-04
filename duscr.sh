@@ -38,6 +38,7 @@
 # target attribute: href
 # target path: "${BASE_URL}<target attribute value>"
 
+
 BASE_URL='https://dziennikustaw.gov.pl/DU/rok'; # to obtain list
 BASE_URL_DIRECT='https://dziennikustaw.gov.pl'; # to avoid redirections when downloading pdf
 CURRENT_YEAR=$(date +%Y); # so that we now when to stop scraping
@@ -329,7 +330,8 @@ function duscr_args_handler() {
 	   
 }
 
-source progressbar.sh || (echo "Missing progressbar.sh script from https://github.com/roddhjav/progressbar"; exit 1);
+# shellcheck source=/dev/null
+source "./progressbar.sh" || (echo "Missing progressbar.sh script from https://github.com/roddhjav/progressbar"; exit 1);
 
 #echo "Third argument is: $3";
 #echo "realpath: $(realpath $3)";
