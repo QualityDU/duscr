@@ -123,7 +123,7 @@ function duscr_actrange_scrap() {
     LOG_FILE_PATH=$5;
     STDOUT_LOGS_FLAG=$6;
     OLD_HEADPOINT=$7;
-    echo "$(duscr_bulk_download "$BASE_URL/$YYYY/$ACTRANGENO" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$OLD_HEADPOINT" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG")"; #FIXME
+    duscr_bulk_download "$BASE_URL/$YYYY/$ACTRANGENO" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$OLD_HEADPOINT" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG"; #FIXME this echo
 }
 
 # $1 - YYYY
@@ -180,7 +180,7 @@ function duscr_year_scrap() {
 	                echo "Number of act ranges: $ACTRANGENO_MAX";
 	            fi;
                 fi;
-                PROGRESSBAR_PROGRESS=$(( $ACTRANGENO_MAX - $actrangeno + 1 ));
+		PROGRESSBAR_PROGRESS=$((ACTRANGENO_MAX - actrangeno + 1));
 
 		progressbar "Scraping year $YYYY, act range no $actrangeno..." "$PROGRESSBAR_PROGRESS" "$ACTRANGENO_MAX";
 		HEADPOINT_SAVE_FLAG=$(duscr_actrange_scrap "$YYYY" "$actrangeno" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG" "$OLD_HEADPOINT"); 
@@ -213,7 +213,7 @@ function duscr_year_scrap() {
 		    echo "Number of journals: $JOURNALNO_MAX";
 		fi;
 	    fi;
-	    PROGRESSBAR_PROGRESS=$(( $JOURNALNO_MAX - $journalno + 1 )); 
+	    PROGRESSBAR_PROGRESS=$((JOURNALNO_MAX - journalno + 1)); 
 	    progressbar  "Scraping year $YYYY, journal $journalno... " "$PROGRESSBAR_PROGRESS" "$JOURNALNO_MAX";
 	    duscr_journal_scrap "$YYYY" "$journalno" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
         done < <(until curl -s "$BASE_URL/$YYYY"; do sleep 5; done | pup '#c_table tbody tr td.numberAlign a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep wydanie | awk -F '/' '{print $6}');	
@@ -281,7 +281,7 @@ function duscr_args_handler() {
 	        echo "$DATA_DIR already is a duscr initialized directory. Quit.";
 	        exit 1;
 	    fi;
-	    if [ ! -z "$( ls -A . )" ]; then
+	    if [ -n "$( ls -A . )" ]; then
 		read -p "$DATA_DIR is a non-empty directory. Are you sure you want to use it instead of an empty directory? " -n 1 -r
                 echo;
                 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
