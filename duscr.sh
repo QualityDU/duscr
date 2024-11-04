@@ -42,8 +42,8 @@
 BASE_URL='https://dziennikustaw.gov.pl/DU/rok'; # to obtain list
 BASE_URL_DIRECT='https://dziennikustaw.gov.pl'; # to avoid redirections when downloading pdf
 CURRENT_YEAR=$(date +%Y); # so that we now when to stop scraping
-#FIRST_YEAR=1944;
-FIRST_YEAR=2023;
+FIRST_YEAR=1944;
+#FIRST_YEAR=2023;
 FIRST_YEAR_F01="$FIRST_YEAR";
 FIRST_YEAR_F02=2012;
 DUSCR_DIR_RELPATH=".duscr";
