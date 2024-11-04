@@ -64,10 +64,10 @@ function duscr_bulk_download() {
 
     #echo "SYNC_CHECK_FLAG = $SYNC_CHECK_FLAG";
 
-    while read relpath; do	
+    while read -r relpath; do	
         if [ "$HEADPOINT_SAVE_FLAG" = "1" ]; then
             # save the headpoint to .duscr/headpoint
-	    HEADPOINT_PDF_RELPATH=$(echo $relpath | awk -F '/' '{print $5}');
+	    HEADPOINT_PDF_RELPATH=$(echo "$relpath" | awk -F '/' '{print $5}');
 	    echo "${HEADPOINT_PDF_RELPATH:1:-4}" > "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH" || (echo "Failed to write to $DUSCR_HEADPOINT_RELPATH" >> "$LOG_FILE_PATH"; exit 1);
 	    if [ "$STDOUT_LOGS_FLAG" = "1" ]; then	
 	        echo "${HEADPOINT_PDF_RELPATH:1:-4}";
@@ -77,7 +77,7 @@ function duscr_bulk_download() {
 	if [ "$SYNC_CHECK_FLAG" = "0" ]; then
 	    until wget -q "$BASE_URL_DIRECT/$relpath"; do sleep 5; done;
         elif [ "$SYNC_CHECK_FLAG" = "1" ]; then
-            CURRPOINT_PDF_RELPATH=$(echo $relpath | awk -F '/' '{print $5}');
+            CURRPOINT_PDF_RELPATH=$(echo "$relpath" | awk -F '/' '{print $5}');
 	    if [[ "${CURRPOINT_PDF_RELPATH:1:-4}" > "$OLD_HEADPOINT" ]]; then
 		echo "Sync: adding $relpath" >> "$LOG_FILE_PATH";
                 if [ "$STDOUT_LOGS_FLAG" = "1" ]; then	    
@@ -93,7 +93,7 @@ function duscr_bulk_download() {
 	    exit 1; # TODO FIXME
 	fi;
     done < <(until curl -s "$BULK_DOWNLOAD_URL"; do sleep 5; done | pup '#c_table tbody tr a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep .pdf);
-    echo $HEADPOINT_SAVE_FLAG; #FIXME
+    echo "$HEADPOINT_SAVE_FLAG"; #FIXME
 }
 
 # $1 - YYYY
@@ -123,7 +123,7 @@ function duscr_actrange_scrap() {
     LOG_FILE_PATH=$5;
     STDOUT_LOGS_FLAG=$6;
     OLD_HEADPOINT=$7;
-    echo $(duscr_bulk_download "$BASE_URL/$YYYY/$ACTRANGENO" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$OLD_HEADPOINT" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG"); #FIXME
+    echo "$(duscr_bulk_download "$BASE_URL/$YYYY/$ACTRANGENO" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$OLD_HEADPOINT" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG")"; #FIXME
 }
 
 # $1 - YYYY
@@ -142,7 +142,7 @@ function duscr_year_scrap() {
     fi;
     if [ "$SYNC_FLAG" = "1" ]; then
 	if [ ! -f "$DUSCR_DIR_RELPATH/$DUSCR_HEADPOINT_RELPATH" ]; then
-		echo "Sync: missing headpoint! The duscr scraping data directory was not initialized correctly (interrupted download process?). You need to empty the directory '$DATA_DIR' (or choose a different one) and then run 'duscr init <directory_path>'. Quit" >> $LOG_FILE_PATH;
+		echo "Sync: missing headpoint! The duscr scraping data directory was not initialized correctly (interrupted download process?). You need to empty the directory '$DATA_DIR' (or choose a different one) and then run 'duscr init <directory_path>'. Quit" >> "$LOG_FILE_PATH";
 		if [ "$STDOUT_LOGS_FLAG" = "1" ]; then    
 		    echo "Sync: missing headpoint! The duscr scraping data directory was not initialized correctly (interrupted download process?). You need to empty the directory '$DATA_DIR' (or choose a different one) and then run 'duscr init <directory_path>'. Quit";
 		fi;
@@ -171,18 +171,18 @@ function duscr_year_scrap() {
             fi;
             ACTRANGENO_MAX_SET_FLAG=1;
             ACTRANGENO_MAX=0;
-            while read actrangeno; do
+            while read -r actrangeno; do
 	   	if [ "$ACTRANGENO_MAX_SET_FLAG" = "1" ]; then
 		    ACTRANGENO_MAX="$actrangeno";
 	            ACTRANGENO_MAX_SET_FLAG=0;
 	            echo "Number of act ranges: $ACTRANGENO_MAX" >> "$LOG_FILE_PATH";
-	            if [ "STDOUT_LOGS_FLAG" = "1" ]; then
+	            if [ "$STDOUT_LOGS_FLAG" = "1" ]; then
 	                echo "Number of act ranges: $ACTRANGENO_MAX";
 	            fi;
                 fi;
                 PROGRESSBAR_PROGRESS=$(( $ACTRANGENO_MAX - $actrangeno + 1 ));
 
-                progressbar "Scraping year $YYYY, act range no $actrangeno..." $PROGRESSBAR_PROGRESS $ACTRANGENO_MAX;
+		progressbar "Scraping year $YYYY, act range no $actrangeno..." "$PROGRESSBAR_PROGRESS" "$ACTRANGENO_MAX";
 		HEADPOINT_SAVE_FLAG=$(duscr_actrange_scrap "$YYYY" "$actrangeno" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG" "$OLD_HEADPOINT"); 
                 #if [ "$SYNC_FLAG" = "0" ]; then
 		#    duscr_actrange_scrap "$YYYY" "$actrangeno" 0 "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
@@ -204,7 +204,7 @@ function duscr_year_scrap() {
 	fi;
 	JOURNALNO_MAX_SET_FLAG=1;
 	JOURNALNO_MAX=0;
-        while read journalno; do
+        while read -r journalno; do
 	    if [ "$JOURNALNO_MAX_SET_FLAG" = "1" ]; then
 	        JOURNALNO_MAX="$journalno";
 		JOURNALNO_MAX_SET_FLAG=0;
@@ -214,7 +214,7 @@ function duscr_year_scrap() {
 		fi;
 	    fi;
 	    PROGRESSBAR_PROGRESS=$(( $JOURNALNO_MAX - $journalno + 1 )); 
-	    progressbar  "Scraping year $YYYY, journal $journalno... " $PROGRESSBAR_PROGRESS $JOURNALNO_MAX;
+	    progressbar  "Scraping year $YYYY, journal $journalno... " "$PROGRESSBAR_PROGRESS" "$JOURNALNO_MAX";
 	    duscr_journal_scrap "$YYYY" "$journalno" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
         done < <(until curl -s "$BASE_URL/$YYYY"; do sleep 5; done | pup '#c_table tbody tr td.numberAlign a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep wydanie | awk -F '/' '{print $6}');	
     else
@@ -236,7 +236,7 @@ function duscr_arg_common_sanity_checks() {
     DATA_DIR=$2;
     LOG_FILE_PATH=$3;
     STDOUT_LOGS_FLAG=$4;
-    if [ ! -d $DATA_DIR ]; then
+    if [ ! -d "$DATA_DIR" ]; then
         echo "The provided directory \"$DATA_DIR\" doesn't exist!";
 	exit 1;
     fi;
@@ -273,9 +273,9 @@ function duscr_args_handler() {
     STDOUT_LOGS_FLAG=$4;
     case $MODE in
         init)
-	    duscr_arg_common_sanity_checks $MODE "$DATA_DIR" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
+	    duscr_arg_common_sanity_checks "$MODE" "$DATA_DIR" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
 	    LOG_FILE_PATH="$(realpath "$LOG_FILE_PATH")";
-	    cd $DATA_DIR || (echo "Failed to cd $DATA_DIR"; exit 1);
+	    cd "$DATA_DIR" || (echo "Failed to cd $DATA_DIR"; exit 1);
 	    # check if .duscr exists
 	    if [ -d "$DUSCR_DIR_RELPATH" ]; then
 	        echo "$DATA_DIR already is a duscr initialized directory. Quit.";
@@ -294,7 +294,7 @@ function duscr_args_handler() {
             mkdir "$DUSCR_DIR_RELPATH";
             
             # download everything starting from 1944 and ending CURRENT_YEAR
-	    for year in $(seq $FIRST_YEAR $CURRENT_YEAR);
+	    for year in $(seq "$FIRST_YEAR" "$CURRENT_YEAR");
 	    do
 		#echo "[dbg1] LOG_FILE_PATH = $LOG_FILE_PATH";
 	        duscr_year_scrap "$year" 0 "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG"; 
@@ -303,9 +303,9 @@ function duscr_args_handler() {
 	    ;;
         sync)
 	    # check for new stuff and update the dataset if needed
-	    duscr_arg_common_sanity_checks $MODE "$DATA_DIR" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
+	    duscr_arg_common_sanity_checks "$MODE" "$DATA_DIR" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
 	    LOG_FILE_PATH="$(realpath "$LOG_FILE_PATH")";
-	    cd $DATA_DIR || (echo "Failed to cd $DATA_DIR"; exit 1);
+	    cd "$DATA_DIR" || (echo "Failed to cd $DATA_DIR"; exit 1);
 	    # check if .duscr doesn't exist
 	    if [ ! -d "$DUSCR_DIR_RELPATH" ]; then
                 echo "$DATA_DIR is not a duscr data directory. Use 'duscr init <directory_path>' to initialize a duscr scraping data directory. Quit";
@@ -334,5 +334,5 @@ source progressbar.sh || (echo "Missing progressbar.sh script from https://githu
 #echo "Third argument is: $3";
 #echo "realpath: $(realpath $3)";
 #echo "realpath fixed: $(realpath /dev/stdout)";
-duscr_args_handler $1 "$2" "$3" "$4";
+duscr_args_handler "$1" "$2" "$3" "$4";
 
