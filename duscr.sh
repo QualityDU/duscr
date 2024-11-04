@@ -41,8 +41,8 @@
 BASE_URL='https://dziennikustaw.gov.pl/DU/rok'; # to obtain list
 BASE_URL_DIRECT='https://dziennikustaw.gov.pl'; # to avoid redirections when downloading pdf
 CURRENT_YEAR=$(date +%Y); # so that we now when to stop scraping
-FIRST_YEAR=1944;
-#FIRST_YEAR=2023;
+#FIRST_YEAR=1944;
+FIRST_YEAR=2023;
 FIRST_YEAR_F01="$FIRST_YEAR";
 FIRST_YEAR_F02=2012;
 DUSCR_DIR_RELPATH=".duscr";
@@ -93,7 +93,7 @@ function duscr_bulk_download() {
 	    exit 1; # TODO FIXME
 	fi;
     done < <(until curl -s "$BULK_DOWNLOAD_URL"; do sleep 5; done | pup '#c_table tbody tr a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | grep .pdf);
-    echo $HEADPOINT_SAVE_FLAG;
+    echo $HEADPOINT_SAVE_FLAG; #FIXME
 }
 
 # $1 - YYYY
@@ -106,6 +106,24 @@ function duscr_journal_scrap() {
     LOG_FILE_PATH=$3;
     STDOUT_LOGS_FLAG=$4;
     duscr_bulk_download "$BASE_URL/$YYYY/wydanie/$JOURNALNO" 0 0 0 "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG" > /dev/null; 
+}
+
+# $1 - YYYY
+# $2 - actrangeno
+# $3 - headpoint save flag
+# $4 - sync flag
+# $5 - log file path
+# $6 - stdout logs flag (1 or 0)
+# $7 - old headpoint
+function duscr_actrange_scrap() {
+    YYYY=$1;
+    ACTRANGENO=$2;
+    HEADPOINT_SAVE_FLAG=$3;
+    SYNC_FLAG=$4;
+    LOG_FILE_PATH=$5;
+    STDOUT_LOGS_FLAG=$6;
+    OLD_HEADPOINT=$7;
+    echo $(duscr_bulk_download "$BASE_URL/$YYYY/$ACTRANGENO" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$OLD_HEADPOINT" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG"); #FIXME
 }
 
 # $1 - YYYY
@@ -138,12 +156,42 @@ function duscr_year_scrap() {
 	exit 1;
     elif [ "$YYYY" -ge "$FIRST_YEAR_F02" ]; then
 	#echo "[dbg] LOG_FILE_PATH=$LOG_FILE_PATH";
-        echo -n "Scraping year $YYYY... " >> "$LOG_FILE_PATH";    
+        echo "Scraping year $YYYY... " >> "$LOG_FILE_PATH";    
 	if [ "$STDOUT_LOGS_FLAG" = "1" ]; then
-	    echo -n "Scraping year $YYYY...";
+	    echo "Scraping year $YYYY...";
 	fi;
 	#echo "[dbg] SYNC_FLAG = $SYNC_FLAG";
-	HEADPOINT_SAVE_FLAG=$(duscr_bulk_download "$BASE_URL/$YYYY" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$HEADPOINT_OLD" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG");
+	if [ "$SYNC_FLAG" = "1" ]; then
+	    HEADPOINT_SAVE_FLAG=$(duscr_bulk_download "$BASE_URL/$YYYY" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$HEADPOINT_OLD" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG");
+        else
+	    # scrap ranges
+	    echo "Processing act ranges for year $YYYY" >> "$LOG_FILE_PATH";
+	    if [ "$STDOUT_LOGS_FLAG" = "1" ]; then
+	        echo "Processing act ranges for year $YYYY";
+            fi;
+            ACTRANGENO_MAX_SET_FLAG=1;
+            ACTRANGENO_MAX=0;
+            while read actrangeno; do
+	   	if [ "$ACTRANGENO_MAX_SET_FLAG" = "1" ]; then
+		    ACTRANGENO_MAX="$actrangeno";
+	            ACTRANGENO_MAX_SET_FLAG=0;
+	            echo "Number of act ranges: $ACTRANGENO_MAX" >> "$LOG_FILE_PATH";
+	            if [ "STDOUT_LOGS_FLAG" = "1" ]; then
+	                echo "Number of act ranges: $ACTRANGENO_MAX";
+	            fi;
+                fi;
+                PROGRESSBAR_PROGRESS=$(( $ACTRANGENO_MAX - $actrangeno + 1 ));
+
+                progressbar "Scraping year $YYYY, act range no $actrangeno..." $PROGRESSBAR_PROGRESS $ACTRANGENO_MAX;
+		HEADPOINT_SAVE_FLAG=$(duscr_actrange_scrap "$YYYY" "$actrangeno" "$HEADPOINT_SAVE_FLAG" "$SYNC_FLAG" "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG" "$OLD_HEADPOINT"); 
+                #if [ "$SYNC_FLAG" = "0" ]; then
+		#    duscr_actrange_scrap "$YYYY" "$actrangeno" 0 "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
+		#else 
+		#    duscr_actrange_scrap "$YYYY" "$actrangeno" 1 "$LOG_FILE_PATH" "$STDOUT_LOGS_FLAG";
+		#fi;
+
+	    done < <(until curl -s "$BASE_URL/$YYYY"; do sleep 5; done | pup 'div.frigth a' | sed -n 's/.*href=\"\([^"]*\)".*/\1/p' | tac | awk -F '/' '{print $5}');	    
+	fi;
 	echo "Done" >> "$LOG_FILE_PATH";
 	if [ "$STDOUT_LOGS_FLAG" = "1" ]; then
 	    echo "Done";
