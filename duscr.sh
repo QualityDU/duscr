@@ -331,7 +331,7 @@ function duscr_args_handler() {
 }
 
 # shellcheck source=/dev/null
-source "./progressbar.sh" || (echo "Missing progressbar.sh script from https://github.com/roddhjav/progressbar"; exit 1);
+source "progressbar.sh" || (echo "Missing progressbar.sh script from https://github.com/roddhjav/progressbar"; exit 1);
 
 #echo "Third argument is: $3";
 #echo "realpath: $(realpath $3)";
