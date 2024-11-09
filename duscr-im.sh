@@ -24,6 +24,24 @@ DUSCR_OLDEST_ACT_YEAR=1918;
 DUSCR_DIR_RELPATH='.duscr';
 DUSCR_HEADPOINT_RELPATH="$DUSCR_DIR_RELPATH/headpoint";
 DUSCR_ACTCOUNT_RELPATH="$DUSCR_DIR_RELPATH/actcount";
+DUSCR_CHANGELOG_RELPATH="$DUSCR_DIR_RELPATH/changelog";
+
+# $1 - new file basename
+function duscr_mq_push_redis() {
+  local ftag='duscr_notify_redis';
+
+  local new_file_basename="$1";
+  if [ "$new_file_basename" = "" ]; then
+    echo "$ftag: No new file basename provided. Quit";
+    exit 1;
+  fi;
+
+  redis-cli rpush duscr:file_mq "$new_file_basename";
+  if [ $? -ne 0 ]; then
+    echo "$ftag: Failed to push $new_file_basename to redis file mq. Quit";
+    exit 1;
+  fi;
+}
 
 # $1 - year : 1-4 digits
 # $2 - journal no : 1-3 digits
@@ -101,7 +119,7 @@ function duscr_start_code_get_param() {
   local param_names=('' 'year' 'journal no' 'position' 'part no');
   local param_name="${param_names["$param_index"]}";
 
-  local param_val="$(awk -F ',' "{print \$$param_index}")"; 
+  local param_val="$(echo "$start_code" | awk -F ',' "{print \$$param_index}")"; 
   if [ $? -ne 0 ]; then
     echo "$ftag: Failed to obtain $param_name while parsing start code. Quit";
     exit 1;
@@ -262,7 +280,7 @@ function duscr_download_acts() {
         if [ -f "$target_file" ]; then
           echo "$ftag: File $target_file already exists (this could be a result of interrupted download). Skipping";
         else
-          echo "$ftag: Downloading $url to $target_file";
+          echo "$ftag: Querying $url";
           # a) If we get 404, we should skip to next position
           # b) If we get other error, we should retry until success
           local headers=$(until curl -sI "$url"; do sleep 5; done);
@@ -303,6 +321,14 @@ function duscr_download_acts() {
               exit 1;
             fi;
             echo "$ftag: Done downloading remote file at $url to $target_file";
+
+            echo "$(date): $(basename "$target_file")" >> "$target_dir/$DUSCR_CHANGELOG_RELPATH";
+            if [ $? -ne 0 ]; then
+              echo "$ftag: Failed to append to $target_dir/$DUSCR_CHANGELOG_RELPATH. Quit";
+              exit 1;
+            fi;
+
+            duscr_mq_push_redis "$(basename "$target_file")";
 
             # Update headpoint and act count to persist the progress
             if [ "$partno" = "1" ]; then
