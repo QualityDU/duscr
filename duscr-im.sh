@@ -355,6 +355,13 @@ function duscr_download_acts() {
         partno=$((partno + 1));
       done; #partno
       if [ "$should_switch_year" = "1" ]; then
+        # reset journalno and position
+        if [ "$year" -ge "$DUSCR_JOURNALESS_FORMAT_START_YEAR" ]; then
+          journalno=0;
+        else
+          journalno=1;
+        fi;
+        position=1;
         should_switch_year=0;
         break;
       elif [ "$should_switch_journal" = "1" ]; then
