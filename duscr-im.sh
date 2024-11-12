@@ -307,6 +307,7 @@ function duscr_download_acts() {
               fi;
             fi;
             partno=1;
+            echo "!!Breaking!! year=$year, journalno=$journalno, position=$position, partno=$partno; should_switch_journal=$should_switch_journal; should_switch_year=$should_switch_year; iter_follows_journal_switch=$iter_follows_journal_switch";
             break;
           elif [ "$http_status" = "200" ]; then
             # PDF exists
