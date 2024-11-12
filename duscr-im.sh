@@ -265,10 +265,10 @@ function duscr_download_acts() {
 
   while [ "$year" -lt "$current_year" ] ; do #iterate over years
     local should_switch_year=0;
+    local iter_follows_journal_switch=0;
     echo "$ftag: Processing year $year";
     while : ; do #iterate over journalno+position
       local should_switch_journal=0;
-      local iter_follows_journal_switch=0;
       #echo "$ftag: Processing journalno $journalno, position $position";
       echo "[ $num_local_acts / $num_acts ]";
       while : ; do #iterate over partno
