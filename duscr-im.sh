@@ -361,7 +361,10 @@ function duscr_download_acts() {
         else
           journalno=1;
         fi;
-        position=1;
+        # Exclude special case of the 1918-1919 switch
+        if [ "$year" -ne "1918" ]; then
+          position=1;
+        fi;
         should_switch_year=0;
         break;
       elif [ "$should_switch_journal" = "1" ]; then
