@@ -263,7 +263,7 @@ function duscr_download_acts() {
     exit 1;
   fi;
 
-  while [ "$year" -lt "$current_year" ] ; do #iterate over years
+  while [ "$year" -le "$current_year" ] ; do #iterate over years
     local should_switch_year=0;
     local iter_follows_journal_switch=0;
     echo "$ftag: Processing year $year";
