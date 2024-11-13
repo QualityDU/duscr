@@ -384,4 +384,8 @@ echo "duscr-im (Dziennik Ustaw SCRaper IMproved) - duscr-im.sh <target_dir>";
 echo "===============================";
 duscr_download_acts "$1";
 echo "===============================";
-echo "Added $REPLY acts to $1. Done";
+if [ "$REPLY" = "0" ]; then
+  echo "No new acts added to $1. Done";
+else
+  echo "Added $REPLY acts to $1. Done";
+fi;
