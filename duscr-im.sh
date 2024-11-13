@@ -377,6 +377,7 @@ function duscr_download_acts() {
     done; #journalno+position
     year=$((year+1));
   done; #year
+  REPLY=$((num_local_acts - original_num_local_acts));
 }
 
 echo "duscr-im (Dziennik Ustaw SCRaper IMproved) - duscr-im.sh <target_dir>";
